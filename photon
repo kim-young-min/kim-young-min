@@ -58,9 +58,11 @@ public class PhotonManager : MonoBehaviour,IChatClientListener
    
     void Start()
     {
+        //채널명 =  채팅 : chat  ,  알람 : info
         Get_cut_list();
-        chat_ChannelName = "chat";   //인게임 채팅
-        info_ChannelName = "info"; ;       //인게임 알람
+        
+        chat_ChannelName = "chat";        
+        info_ChannelName = "info";  
 
         userName = DBManager.Instance.user_info.nickname;
         userRank = "Unknown";
