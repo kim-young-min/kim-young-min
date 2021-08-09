@@ -1,0 +1,293 @@
+public class OneStore : MonoBehaviour
+{
+    public static OneStore Instance { private set; get; }
+
+    private static readonly string TAG = "OneStore";
+  
+    public const string productId0 = "money_0";
+
+    private List<string> payload = new List<string>();
+
+    public static string[] inapp_products = { productId0};
+
+    public static string[] all_products = { productId0};
+
+    public string base64EncodedPublicKey = "";
+
+    private List<ProductDetail> productDetails;
+
+    private Dictionary<string, PurchaseData> purchaseMap = new Dictionary<string, PurchaseData>();
+    private Dictionary<string, string> signatureMap = new Dictionary<string, string>();
+
+    void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            DestroyImmediate(Instance.gameObject);
+            Instance = this;
+        }
+        DontDestroyOnLoad(gameObject);
+
+        GaaIapResultListener.OnLoadingVisibility += OnLoadingVisibility;
+
+        GaaIapResultListener.PurchaseClientStateResponse += PurchaseClientStateResponse;
+        GaaIapResultListener.OnPurchaseUpdatedResponse += OnPurchaseUpdatedResponse;
+        GaaIapResultListener.OnQueryPurchasesResponse += OnQueryPurchasesResponse;
+        GaaIapResultListener.OnProductDetailsResponse += OnProductDetailsResponse;
+        GaaIapResultListener.OnConsumeSuccessResponse += OnConsumeSuccessResponse;
+        GaaIapResultListener.OnAcknowledgeSuccessResponse += OnAcknowledgeSuccessResponse;
+        GaaIapResultListener.OnManageRecurringResponse += OnManageRecurringResponse;
+        GaaIapResultListener.SendLog += SendLog;
+
+    }
+
+    void OnDestroy()
+    {
+        GaaIapResultListener.OnLoadingVisibility -= OnLoadingVisibility;
+
+        GaaIapResultListener.PurchaseClientStateResponse -= PurchaseClientStateResponse;
+        GaaIapResultListener.OnPurchaseUpdatedResponse -= OnPurchaseUpdatedResponse;
+        GaaIapResultListener.OnQueryPurchasesResponse -= OnQueryPurchasesResponse;
+        GaaIapResultListener.OnProductDetailsResponse -= OnProductDetailsResponse;
+        GaaIapResultListener.OnConsumeSuccessResponse -= OnConsumeSuccessResponse;
+        GaaIapResultListener.OnAcknowledgeSuccessResponse -= OnAcknowledgeSuccessResponse;
+        GaaIapResultListener.OnManageRecurringResponse -= OnManageRecurringResponse;
+        GaaIapResultListener.SendLog -= SendLog;
+
+        //GaaIapCallManager.Destroy();
+    }
+
+    void Start()
+    {
+        Get_payload();
+    }
+
+    PurchaseData GetPurchaseData(string productId)
+    {
+        PurchaseData pData = null;
+        foreach (KeyValuePair<string, PurchaseData> pair in purchaseMap)
+        {
+            if (productId.Equals(pair.Key))
+            {
+                pData = pair.Value;
+                break;
+            }
+        }
+
+        return pData;
+    }
+
+    public void SendLog(string tag, string message)
+    {
+        Debug.Log("[" + tag + "]: " + message);
+    }
+
+ 
+    public void On_StartCoroutine()
+    {
+        StartCoroutine(StartConnectService());
+    }
+    IEnumerator StartConnectService()
+    {
+        yield return new WaitForSeconds(1.0f);
+        StartConnection();
+    }
+    public void StartConnection()
+    {
+        Debug.Log("-----------------------------StartConnection--------------------------");
+        if (GaaIapCallManager.IsServiceAvailable() == false)
+        {
+            OnLoadingVisibility(true);
+            GaaIapCallManager.StartConnection(base64EncodedPublicKey);
+        }
+        else
+        {
+            Debug.Log("----------------------------StartConnection: Already connected to the payment module.----------------------------");
+        }
+    }
+
+    public void BuyProductID(string productId)
+    {
+        Debug.Log("---------------------BuyProduct - productId:------------------------------- " + productId);
+
+        ObscuredString payload_temp = SystemInfo.deviceUniqueIdentifier+ DateTime.Now.ToLocalTime();
+        payload.Add(payload_temp);
+        Set_payload();
+
+        PurchaseFlowParams param = new PurchaseFlowParams();
+        param.productId = productId;
+        param.productType = ProductType.INAPP;     
+        param.devPayload = payload_temp;
+      
+        GaaIapCallManager.LaunchPurchaseFlow(param);
+    }
+
+    void QueryPurchases()
+    {
+        OnLoadingVisibility(true);
+        purchaseMap.Clear();
+        signatureMap.Clear();
+
+        GaaIapCallManager.QueryPurchases(ProductType.INAPP);
+        GaaIapCallManager.QueryPurchases(ProductType.AUTO);
+    }
+
+    void ConsumePurchase(string productId , string paylaod)
+    {
+        Debug.Log("-----------------------------ConsumePurchase: productId: " + productId);
+        PurchaseData purchaseData = GetPurchaseData(productId);
+        if (purchaseData != null)
+        {
+            OnLoadingVisibility(true);
+            GaaIapCallManager.Consume(purchaseData, paylaod);
+        }
+        else
+        {
+            Debug.Log("-----------------------ConsumePurchase: purchase data is null.");
+        }
+    }
+    
+
+    void ManageRecurringProduct(string productId)
+    {
+        Debug.Log("---------------------------ManageRecurringProduct: productId: " + productId);
+        PurchaseData purchaseData = GetPurchaseData(productId);
+        if (purchaseData != null)
+        {
+            OnLoadingVisibility(true);
+            string recurringAction = RecurringAction.REACTIVATE;
+            if (purchaseData.recurringState == RecurringState.RECURRING)
+            {
+                recurringAction = RecurringAction.CANCEL;
+            }
+            GaaIapCallManager.ManageRecurringProduct(purchaseData, recurringAction);
+        }
+        else
+        {
+            Debug.Log("-----------------------------ManageRecurringProduct: purchase data is null.");
+        }
+    }
+
+    void OnLoadingVisibility(bool visibility)
+    {
+
+    }
+
+    void PurchaseClientStateResponse(IapResult iapResult)
+    {
+        Debug.Log("-------------------------PurchaseClientStateResponse:\n\t\t-> ---------------------" + iapResult.ToString());
+
+        if (iapResult.IsSuccess())
+        {
+            Debug.Log("------------------------PurchaseClientStateResponse----------Connected");
+            QueryPurchases();
+            GaaIapCallManager.QueryProductDetails(all_products, ProductType.ALL);
+        }
+        else
+        {
+            Debug.Log("--------------------------PurchaseClientStateResponse----------Disconnected");
+            GaaIapResultListener.HandleError("PurchaseClientStateResponse", iapResult);
+        }
+    }
+
+    void OnPurchaseUpdatedResponse(List<PurchaseData> purchases, List<string> signatures)
+    {
+        ParsePurchaseData("OnPurchaseUpdatedResponse", purchases, signatures);
+    }
+
+    void OnQueryPurchasesResponse(List<PurchaseData> purchases, List<string> signatures)
+    {
+        ParsePurchaseData("OnQueryPurchasesResponse", purchases, signatures);
+    }
+
+    private void ParsePurchaseData(string func, List<PurchaseData> purchases, List<string> signatures)
+    {
+        Debug.Log("--------------------ParsePurchaseData------------------------" +func);
+       
+        for (int i = 0; i < purchases.Count; i++)
+        {
+            PurchaseData p = purchases[i];
+            string s = signatures[i];
+
+            purchaseMap.Add(p.productId, p);
+            signatureMap.Add(p.productId, s);
+                       
+            string id = p.productId;
+            if(payload.Contains(purchases[i].developerPayload))
+            ConsumePurchase(id , purchases[i].developerPayload);
+
+            SendLog(TAG, "PurchaseData[" + i + "]: " + p.productId);
+        }
+    }
+      
+
+    void OnProductDetailsResponse(List<ProductDetail> products)
+    {
+        Debug.Log("---------------------------OnProductDetailsResponse-------------------------");
+        productDetails = products;
+
+        foreach (ProductDetail detail in productDetails)
+        {
+            Debug.Log("----------------------ProductDetail:---------------------------- " + detail.title);
+            string id = detail.productId;
+            string type = detail.type;
+
+        }
+    }
+
+  
+
+    void OnConsumeSuccessResponse(PurchaseData purchaseData)
+    {
+         if (purchaseData.productId.Equals(productId0))
+        {
+       
+        }
+        SendLog(TAG, "OnConsumeSuccessResponse:\n\t\t-> productId: " + purchaseData.productId);
+        purchaseMap.Remove(purchaseData.productId);
+        signatureMap.Remove(purchaseData.productId);
+
+
+    }
+
+    void OnAcknowledgeSuccessResponse(PurchaseData purchaseData)
+    {
+        SendLog(TAG, "OnAcknowledgeSuccessResponse:\n\t\t-> productId: " + purchaseData.productId);
+        QueryPurchases();
+    }
+
+    void OnManageRecurringResponse(PurchaseData purchaseData, string action)
+    {
+        SendLog(TAG, "OnManageRecurringResponse:\n\t\t-> productId: " + purchaseData.productId + ", action: " + action);
+        QueryPurchases();
+    }
+    public void Get_payload()
+    {
+        payload.Clear();
+        char[] splitter = { ',' };
+        Debug.Log("payload list" + PlayerPrefs.GetString("payload").ToString());
+        string[] payload_list = PlayerPrefs.GetString("payload").ToString().Split(splitter);
+
+        for (int i = 0; i < payload_list.Length; ++i)
+        {
+            if (payload_list[i].Length > 0)
+                payload.Add(payload_list[i]);
+        }
+    }
+    public void Set_payload()
+    {
+        string payload_temp = "";
+        for (int i = 0; i < payload.Count; ++i)
+        {
+            payload_temp += payload[i].ToString();
+            if (i != payload.Count - 1)
+                payload_temp += ",";
+        }
+
+        PlayerPrefs.SetString("payload", payload_temp);
+    }
+}
