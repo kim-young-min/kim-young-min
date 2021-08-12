@@ -42,8 +42,7 @@ public class PhotonManager : MonoBehaviour,IChatClientListener
     private static PhotonManager Instance { private set; get; }
 
     private void Awake()
-    {
-       
+    {       
         if (Instance == null)
         {
             Instance = this;
@@ -72,7 +71,6 @@ public class PhotonManager : MonoBehaviour,IChatClientListener
         chatClient.UseBackgroundWorkerForSending = true;
         chatClient.Connect(this.appId, "1.0", new AuthenticationValues(this.userName));
     }
-
    
     void Update()
     {
@@ -105,9 +103,8 @@ public class PhotonManager : MonoBehaviour,IChatClientListener
         Invoke("Re_connect" ,5f);
         for(int i = 0; i < list_chat_object.Count; i++)
         {
-            Destroy(list_chat_object[i].gameObject);
-         
-        }
+            Destroy(list_chat_object[i].gameObject);         
+         }
         list_chat_object.Clear();
         //throw new System.NotImplementedException();
     }
@@ -115,12 +112,10 @@ public class PhotonManager : MonoBehaviour,IChatClientListener
 
     //받은 메세지를 채널명에 따라서 유저채팅, 알람으로 구분해서 유저에게 보여줌
     public void OnGetMessages(string channelName, string[] senders, object[] messages)
-    {
-       
+    {       
         string msgs = "";
         if (channelName.Equals(chat_ChannelName))
-        {
-           
+        {           
             for (int i = 0; i < senders.Length; i++)
             {            
                 JsonData json = JsonMapper.ToObject<JsonData>(messages[i].ToString());
@@ -129,29 +124,20 @@ public class PhotonManager : MonoBehaviour,IChatClientListener
             }          
         }
         else if(channelName.Equals(info_ChannelName))
-        {
-           
+        {           
             for (int i = 0; i < senders.Length; i++)
             {
                 JsonData json = JsonMapper.ToObject<JsonData>(messages[i].ToString());
                 if (json["type"].ToString() == "unit")
                 {
-                    if (DBManager.Instance.language_index == 0)
-                        On_info_message(senders[i] + " " + DBManager.Instance.Language_converter(413) + json["grade"]+"등급 " +DBManager.Instance.list_unit_info[int.Parse(json["index"].ToString())].name+"를 " + DBManager.Instance.Language_converter(414));
-                    else
-                        On_info_message(senders[i] + " " + DBManager.Instance.Language_converter(414) + json["grade"] + "CLASS " + DBManager.Instance.list_unit_info[int.Parse(json["index"].ToString())].name);
+                   On_info_message(senders[i] + " " + DBManager.Instance.Language_converter(413) + json["grade"]+"등급 " +DBManager.Instance.list_unit_info[int.Parse(json["index"].ToString())].name+"를 " + DBManager.Instance.Language_converter(414));
                 }
                 else if (json["type"].ToString() == "pet")
                 {
-                    if (DBManager.Instance.language_index == 0)
-                        On_info_message(senders[i] + " " + DBManager.Instance.Language_converter(413) + json["grade"] + "등급 " + DBManager.Instance.Language_converter(415+int.Parse(json["index"].ToString())) +" "+ DBManager.Instance.Language_converter(414));
-                    else
-                        On_info_message(senders[i] + " "+DBManager.Instance.Language_converter(414) + json["grade"] + "CLASS " + DBManager.Instance.Language_converter(415 + int.Parse(json["index"].ToString())));
-                }
-               
+                   On_info_message(senders[i] + " " + DBManager.Instance.Language_converter(413) + json["grade"] + "등급 " + DBManager.Instance.Language_converter(415+int.Parse(json["index"].ToString())) +" "+ DBManager.Instance.Language_converter(414));
+                }               
             }         
-        }
-      
+        }      
     }
 
     public void OnSubscribed(string[] channels, bool[] results)
@@ -248,7 +234,7 @@ public class PhotonManager : MonoBehaviour,IChatClientListener
         list_chat_message.Add(color);
         list_chat_message.Add(userRank);
         list_chat_message.Add(message);
-        Debug.Log(@"{""msg"":""" + message + "\",\"color\":\"" + color + "\",\"rank\":\"" + userRank + "\"}");
+      
         string json = "{\"msg\":\""+ message + "\",\"color\":\"" +color + "\",\"rank\":\"" + userRank + "\"}";
 
         this.SendChatMessage(json);
@@ -303,6 +289,7 @@ public class PhotonManager : MonoBehaviour,IChatClientListener
         if(info_animation == false)
         StartCoroutine("info_message_animation");
     }
+    
     public IEnumerator info_message_animation()
     {
         info_animation = true;
@@ -324,7 +311,6 @@ public class PhotonManager : MonoBehaviour,IChatClientListener
         info_panel.SetActive(false);
         info_animation = false;
     }
-
   
    // 특정 등급 유닛 획득시 유저들에게 알람
     public void send_unit_info_chat(int grade, int index)
