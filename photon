@@ -195,25 +195,25 @@ public class PhotonManager : MonoBehaviour,IChatClientListener
     {
         string msg = message;
         string color = "";
-        string rank = userRank;
+        int rank = int.Parse(userRank);
 
-        if (int.Parse(userRank) < 11)
+        if (rank < 11)
         {
             color = "<Color=#E43235>" ;
         }
-        else if (int.Parse(userRank) > 10 && int.Parse(userRank) < 51)
+        else if (rank > 10 && rank < 51)
         {
             color = "<Color=#E4A0FA>" ;
         }
-        else if (int.Parse(userRank) > 50 && int.Parse(userRank) < 101)
+        else if (rank > 50 && rank < 101)
         {
             color = "<Color=#FFEEA0>";
         }
-        else if (int.Parse(userRank) > 100 && int.Parse(userRank) < 501)
+        else if (rank > 100 && rank < 501)
         {
             color = "<Color=#84D5FB>" ;
         }
-        else if (int.Parse(userRank) > 500 && int.Parse(userRank) < 1001)
+        else if (rank > 500 && rank < 1001)
         {
             color = "<Color=#AEE78B>" ;
         }
