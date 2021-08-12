@@ -1,0 +1,375 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using Photon;
+using Photon.Chat;
+using ExitGames.Client.Photon;
+using UnityEngine.UI;
+using LitJson;
+using System;
+
+
+public class PhotonManager : MonoBehaviour,IChatClientListener
+{
+    private ChatClient chatClient;   
+    private string chat_ChannelName = "bravepuppy";
+    private string info_ChannelName = "info";
+    private string appId;
+    private string userName;
+    private string userRank;
+    private Text currentChannelText;
+    private InputField inputFieldChat;
+    private bool info_animation = false;
+    private List<string> list_info_message;
+    private GameObject info_panel;
+    private Text info_text;
+    private GameObject chat_text_object;
+    private GameObject chat_content;
+    private List<Chat_text> list_chat_object;
+    private List<string> list_chat_message;
+    private List<string> list_cut_nickname;
+
+    // 싱글톤 생성
+    private static PhotonManager Instance { private set; get; }
+
+    private void Awake()
+    {       
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            DestroyImmediate(Instance.gameObject);
+            Instance = this;
+        }
+        DontDestroyOnLoad(gameObject);
+    }
+   
+    void Start()
+    {
+        //채널명 =  채팅 : chat  ,  알람 : info
+        Get_cut_list();
+        
+        chat_ChannelName = "chat";        
+        info_ChannelName = "info";  
+
+        userName = DBManager.Instance.user_info.nickname;
+        userRank = "Unknown";
+
+        chatClient = new ChatClient(this);      
+        chatClient.ChatRegion = "ASIA";
+        chatClient.UseBackgroundWorkerForSending = true;
+        chatClient.Connect(this.appId, "1.0", new AuthenticationValues(this.userName));
+    }
+   
+    void Update()
+    {
+        chatClient.Service();
+    }
+
+    public void Re_connect()
+    {
+        chatClient = new ChatClient(this);    
+        chatClient.ChatRegion = "ASIA";      
+        chatClient.Connect(this.appId, "1.0", new AuthenticationValues(this.userName));
+    }
+    
+    public void OnChatStateChange(ChatState state)
+    {
+        Debug.Log(state.ToString());    
+    }
+
+    public void OnConnected() // 서버 연결
+    {   
+        // 지정한 채널명으로 접속
+        chatClient.Subscribe(new string[] { chat_ChannelName }, 30);
+        chatClient.Subscribe(new string[] { info_ChannelName }, 0);
+    }
+
+    //서버와의 연결이 끊어지면 5초후 다시 재접속
+    public void OnDisconnected()
+    {
+        Debug.Log("서버에 연결이 끊어 졌습니다.");
+        Invoke("Re_connect" ,5f);
+        for(int i = 0; i < list_chat_object.Count; i++)
+        {
+            Destroy(list_chat_object[i].gameObject);         
+         }
+        list_chat_object.Clear();
+        //throw new System.NotImplementedException();
+    }
+
+
+    //받은 메세지를 채널명에 따라서 유저채팅, 알람으로 구분해서 유저에게 보여줌
+    public void OnGetMessages(string channelName, string[] senders, object[] messages)
+    {       
+        string msgs = "";
+        if (channelName.Equals(chat_ChannelName))
+        {           
+            for (int i = 0; i < senders.Length; i++)
+            {            
+                JsonData json = JsonMapper.ToObject<JsonData>(messages[i].ToString());
+                On_user_message(json["rank"].ToString(), json["color"].ToString(), senders[i],  json["msg"].ToString());
+                msgs += senders[i] + "=" + messages[i] + ", ";              
+            }          
+        }
+        else if(channelName.Equals(info_ChannelName))
+        {           
+            for (int i = 0; i < senders.Length; i++)
+            {
+                JsonData json = JsonMapper.ToObject<JsonData>(messages[i].ToString());
+                if (json["type"].ToString() == "unit")
+                {
+                   On_info_message(senders[i] + " " + DBManager.Instance.Language_converter(413) + json["grade"]+"등급 " +DBManager.Instance.list_unit_info[int.Parse(json["index"].ToString())].name+"를 " + DBManager.Instance.Language_converter(414));
+                }
+                else if (json["type"].ToString() == "pet")
+                {
+                   On_info_message(senders[i] + " " + DBManager.Instance.Language_converter(413) + json["grade"] + "등급 " + DBManager.Instance.Language_converter(415+int.Parse(json["index"].ToString())) +" "+ DBManager.Instance.Language_converter(414));
+                }               
+            }         
+        }      
+    }
+
+    public void OnSubscribed(string[] channels, bool[] results)
+    {
+        for (int i = 0; i < channels.Length; i++)
+        {
+            Debug.Log("OnSubscribed ::::::::::" + channels[i]);
+        }
+        for (int i = 0; i < results.Length; i++)
+        {
+            Debug.Log("OnSubscribed ::::::::::" + results[i]);
+        }
+    }
+
+    public void OnUnsubscribed(string[] channels)
+    {
+        for (int i = 0; i < channels.Length; i++)
+        {
+            Debug.Log("OnUnsubscribed ::::::::::" + channels[i]);
+        }
+    }
+
+    // 채널에 저장 된 모든 채팅 메세지를 불러온다.
+    // 유저 이름과 채팅 내용이 한꺼번에 불러와진다.
+    public void ShowChannel(string channelName)
+    {
+        Debug.Log("ShowChannel ::" + channelName);
+        if (string.IsNullOrEmpty(channelName))
+        {
+            return;
+        }
+
+        ChatChannel channel = null;
+        bool found = this.chatClient.TryGetChannel(channelName, out channel);
+        if (!found)
+        {
+            Debug.Log("ShowChannel failed to find channel: " + channelName);
+            return;
+        }
+
+        this.chat_ChannelName = channelName;
+        
+        if(channelName == chat_ChannelName)
+        {
+            Debug.Log("사용자 채팅 입니다" + channel.ToStringMessages());
+        }
+        else if(channelName == info_ChannelName)
+        {
+            Debug.Log("정보 채팅 입니다" + channel.ToStringMessages());
+        }
+        this.currentChannelText.text = channel.ToStringMessages();              
+    }
+    public void OnEnterSend_chat()
+    {
+        if (inputFieldChat.text.Length > 0)
+        {
+            this.chat_converter(this.inputFieldChat.text);
+            this.inputFieldChat.text = "";
+        }
+    }
+
+    // 유저 랭킹에 따라서 채팅 Color 를 지정해서 서버에 전송
+    public void Chat_converter(string message)
+    {
+        string msg = message;
+        string color = "";
+        int rank = int.Parse(userRank);
+
+        if (rank < 11)
+        {
+            color = "<Color=#E43235>" ;
+        }
+        else if (rank > 10 && rank < 51)
+        {
+            color = "<Color=#E4A0FA>" ;
+        }
+        else if (rank > 50 && rank < 101)
+        {
+            color = "<Color=#FFEEA0>";
+        }
+        else if (rank > 100 && rank < 501)
+        {
+            color = "<Color=#84D5FB>" ;
+        }
+        else if (rank > 500 && rank < 1001)
+        {
+            color = "<Color=#AEE78B>" ;
+        }
+        else
+        {
+            color = "<Color=#CFCFCF>" ;
+        }
+        list_chat_message.Clear();
+        list_chat_message.Add(color);
+        list_chat_message.Add(userRank);
+        list_chat_message.Add(message);
+      
+        string json = "{\"msg\":\""+ message + "\",\"color\":\"" +color + "\",\"rank\":\"" + userRank + "\"}";
+
+        this.SendChatMessage(json);
+    }
+    public void OnEnterSend_info(string message)
+    {
+        this.SendInfoMessage(message);
+    }
+ 
+    private void SendChatMessage(string inputLine)
+    {        
+        this.chatClient.PublishMessage(chat_ChannelName, inputLine);
+    }
+    private void SendInfoMessage(string inputLine)
+    {
+        if (string.IsNullOrEmpty(inputLine))
+        {
+            return;
+        }
+        this.chatClient.PublishMessage(info_ChannelName, inputLine);
+    }
+
+    public void OnApplicationQuit()
+    {
+        if (chatClient != null)
+        {
+            chatClient.Disconnect();
+        }
+    }
+    public void On_user_message(string rank, string color ,string name  ,string message)
+    {    
+        if (!list_cut_nickname.Contains(name))
+        {
+            if (list_chat_object.Count >= 20)
+            {
+                Destroy(list_chat_object[0].gameObject);
+                list_chat_object.RemoveAt(0);
+            }
+            GameObject text = Instantiate(chat_text_object, gameObject.transform.position, Quaternion.identity);
+            text.transform.SetParent(chat_content.transform);
+            text.transform.localScale = new Vector3(1, 1, 1);
+            text.GetComponent<Chat_text>().text_setting(rank, color, name, message);
+            if(name == DBManager.Instance.user_info.nickname)
+                text.GetComponent<Button>().interactable = false;
+            list_chat_object.Add(text.GetComponent<Chat_text>());
+        }
+    }
+  
+    public void On_info_message(string info)
+    {
+        list_info_message.Add(info);
+        if(info_animation == false)
+        StartCoroutine("info_message_animation");
+    }
+    
+    public IEnumerator Info_message_animation()
+    {
+        info_animation = true;
+        info_panel.SetActive(true);
+        for (int ii = 0; ii < list_info_message.Count; ii++)
+        {
+            info_text.text = list_info_message[ii];
+            info_text.transform.localPosition = new Vector3(1500, 0, 1);
+            for (int i = 0; i < 700; i++)
+            {
+                info_text.transform.Translate(Vector3.left*Time.deltaTime);
+                yield return new WaitForSeconds(0.01f);
+            }
+            if(ii == list_info_message.Count-1)
+            {
+                list_info_message.Clear();
+            }
+        }
+        info_panel.SetActive(false);
+        info_animation = false;
+    }
+  
+   // 특정 등급 유닛 획득시 유저들에게 알람
+    public void Send_unit_info_chat(int grade, int index)
+    {
+        if (!ServerManager.Instance.gm) // GM 알람 X
+        {
+            string grade_value = grade.ToString();
+            string index_value = index.ToString();
+
+            if (grade == 4)
+            {
+                grade_value = " A ";
+            }
+            else if (grade == 5)
+            {
+                grade_value = " A ";
+            }
+            else if (grade == 6)
+            {
+                grade_value = " S ";
+            }
+            else if (grade == 7)
+            {
+                grade_value = " SS ";
+            }
+            string json = "{\"grade\":\"" + grade_value + "\",\"index\":\"" + index_value + "\",\"type\":\"" + "unit" + "\"}"; ;
+            OnEnterSend_info(json);
+        }
+    }
+    public void Remove_cut_nickname(string nickname)
+    {
+        list_cut_nickname.Remove(nickname);
+
+        Set_cut_list();
+    }
+    public void Insert_cut_nickname(string nickname)
+    {
+        if (!list_cut_nickname.Contains(nickname))
+            list_cut_nickname.Add(nickname);
+
+        Set_cut_list();
+    }
+
+    // 디바이스에 저장되어 있는 유저 차단 목록을 가져옴
+    public void Get_cut_list()
+    {
+        list_cut_nickname.Clear();
+        char[] splitter = { ',' };
+        Debug.Log("차단 목록" + PlayerPrefs.GetString("cut").ToString());
+        string[] cut_list = PlayerPrefs.GetString("cut").ToString().Split(splitter);
+
+        for (int i = 0; i < cut_list.Length; ++i)
+        {
+            if(cut_list[i].Length >0)
+            list_cut_nickname.Add(cut_list[i]);
+        }
+    }
+
+    // 리스트에 있는 차단목록을 디바이스에 저장
+    public void Set_cut_list()
+    {
+        string cut = "";
+        for (int i = 0; i < list_cut_nickname.Count; ++i)
+        {
+            cut += list_cut_nickname[i].ToString();
+            if (i != list_cut_nickname.Count - 1)
+                cut += ",";
+        }
+        PlayerPrefs.SetString("cut", cut);
+    }
+}
