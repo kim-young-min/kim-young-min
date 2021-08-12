@@ -11,29 +11,20 @@ using System;
 
 public class PhotonManager : MonoBehaviour,IChatClientListener
 {
-   
-
-    private ChatClient chatClient;
-   
+    private ChatClient chatClient;   
     private string chat_ChannelName = "bravepuppy";
     private string info_ChannelName = "info";
-
     private string appId;
     private string userName;
     private string userRank;
-
     private Text currentChannelText;
-
     private InputField inputFieldChat;
-
     private bool info_animation = false;
     private List<string> list_info_message;
     private GameObject info_panel;
     private Text info_text;
-
     private GameObject chat_text_object;
     private GameObject chat_content;
-
     private List<Chat_text> list_chat_object;
     private List<string> list_chat_message;
     private List<string> list_cut_nickname;
