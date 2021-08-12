@@ -1,0 +1,23 @@
+        if (player != null)
+        {
+            if (player.gameObject.activeInHierarchy)
+            {                
+                Vector2 direction = (Vector2)player.position - rigid.position;                
+                float rotateAmount = Vector3.Cross(direction, transform.up).z;              
+                rigid.angularVelocity = -rotateAmount * rotatingSpeed;                
+                var main = particle.main;
+                main.startRotation = gameObject.transform.rotation.z;
+            }
+            else
+                rigid.constraints = RigidbodyConstraints2D.FreezeRotation;
+        }    
+        else
+        {
+            particle.transform.rotation = gameObject.transform.rotation;
+            rigid.constraints = RigidbodyConstraints2D.FreezeRotation;
+        }
+        rigid.velocity = transform.up * movingSpeed;
+        
+        //유도미사일
+        //미사일이 플레이어의 위치로 서서히 회전하게 만든다.
+        //rotatingSpeed 변수로 회전 속도를 변경가능
